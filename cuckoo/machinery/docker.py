@@ -3,7 +3,7 @@ import random as rand
 from cuckoo.common.abstracts import Machinery
 from cuckoo.common.exceptions import CuckooMachineError
 
-vmclient = vm.from_env()
+vmvmclient = vm.from_env()
 isup = vmclient.ping()
 if isup == True:
 	print("connection to docker daemon successful")
@@ -15,7 +15,9 @@ elif isup == False:
 class Docker(Machinery):
 	def agentStart():  
         	vmclient.containers.run("cuckooagent", "python /opt/agent.py", remove=True, detach=False, auto_remove=True, ports={'8000/tcp':8000}, name="cuckooMachinery", tty=True, network_mode="host")
-        
+        def agentStop():
+		lowlevelapi = vm.APIClient(base_url='unix://var/run/docker.sock')
+		lowlevelapi.kill("cuckooMachinery")
         def start(self, label):
         	try:
 	            	agentStart()
@@ -26,7 +28,8 @@ class Docker(Machinery):
 
     	def stop(self, label):
         	try:
-            		stop(label)
+            		agentStop()
+			stop(label)
         	except SomethingBadHappens:
             		raise CuckooMachineError("oops!")
 
