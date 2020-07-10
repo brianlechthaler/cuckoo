@@ -1,3 +1,6 @@
+**----> EXPERIMENTAL DOCKER-AS-MACHINERY FORK** 
+*Run /bin/bash stuff/build_container.sh before using Docker as machinery*
+
 .. image:: https://cuckoosandbox.org/assets/images/cuckoo-black.png
    :alt: Cuckoo Sandbox
    :target: https://cuckoosandbox.org/
