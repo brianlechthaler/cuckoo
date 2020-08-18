@@ -238,6 +238,7 @@ class Config(object):
                 "ip": String("192.168.56.1"),
                 "port": Int(2042),
                 "force_port": Boolean(False),
+                "pool_size": Int(0, False),
                 "upload_max_size": Int(128 * 1024 * 1024),
             },
             "processing": {
@@ -349,6 +350,18 @@ class Config(object):
                     exists=False, writable=False, readable=True
                 ),
             },
+            "replay": {
+                "enabled": Boolean(True, required=False),
+                "mitmdump": Path(
+                    "/usr/local/bin/mitmdump", exists=False,
+                    writable=False, readable=True, required=False
+                ),
+                "port_base": Int(51000, required=False),
+                "certificate": Path(
+                    "bin/cert.p12", exists=False,
+                    writable=False, readable=True, required=False
+                ),
+            },
             "services": {
                 "enabled": Boolean(False),
                 "services": String("honeyd"),
@@ -412,6 +425,7 @@ class Config(object):
         },
         "kvm": {
             "kvm": {
+                "dsn": String("qemu:///system", required=False),
                 "interface": String("virbr0"),
                 "machines": List(String, "cuckoo1"),
             },
@@ -674,6 +688,7 @@ class Config(object):
                 "scan": Boolean(False),
                 "force": Boolean(False),
                 "url": String(),
+                "probes": String(required=False),
             },
         },
         "qemu": {
@@ -769,6 +784,12 @@ class Config(object):
                 "url": String(),
                 "apikey": String(sanitize=True),
                 "mode": String("maldoc ipaddr hashes url"),
+                "distribution": Int(0, required=False),
+                "analysis": Int(0, required=False),
+                "threat_level": Int(4, required=False),
+                "min_malscore": Int(0, required=False),
+                "tag": String("Cuckoo", required=False),
+                "upload_sample": Boolean(False, required=False),
             },
             "mongodb": {
                 "enabled": Boolean(False),
@@ -831,6 +852,7 @@ class Config(object):
             "inetsim": {
                 "enabled": Boolean(False),
                 "server": String("192.168.56.1"),
+                "ports": String(),
             },
             "tor": {
                 "enabled": Boolean(False),
