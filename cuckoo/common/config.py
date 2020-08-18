@@ -1,5 +1,5 @@
 # Copyright (C) 2012-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2019 Cuckoo Foundation.
+# Copyright (C) 2014-2018 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -8,6 +8,7 @@ import click
 import os
 import logging
 import re
+import traceback
 
 from cuckoo.common.exceptions import CuckooConfigurationError
 from cuckoo.common.objects import Dictionary
@@ -148,7 +149,7 @@ class UUID(Type):
             log.error("Incorrect UUID %s", value)
 
     def check(self, value):
-        """Check if the value is of type UUID."""
+        """Checks if the value is of type UUID."""
         try:
             click.UUID(value)
             return True
@@ -207,10 +208,9 @@ class Config(object):
         "cuckoo": {
             "cuckoo": {
                 "version_check": Boolean(True),
-                "ignore_vulnerabilities": Boolean(False, required=False),
                 "delete_original": Boolean(False),
                 "delete_bin_copy": Boolean(False),
-                "machinery": String("virtualbox"),
+                "machinery": String("aws"),
                 "memory_dump": Boolean(False),
                 "terminate_processes": Boolean(False),
                 "reschedule": Boolean(False),
@@ -222,12 +222,6 @@ class Config(object):
                 "tmppath": Path(
                     exists=True, writable=True, readable=False,
                     allow_empty=True
-                ),
-                "api_token": String(
-                    allow_empty=True, sanitize=True, required=False
-                ),
-                "web_secret": String(
-                    allow_empty=True, sanitize=True, required=False
                 ),
                 "rooter": Path(
                     "/tmp/cuckoo-rooter",
@@ -243,8 +237,7 @@ class Config(object):
             "resultserver": {
                 "ip": String("192.168.56.1"),
                 "port": Int(2042),
-                "force_port": Boolean(False, False),  # Unused
-                "pool_size": Int(0, False),
+                "force_port": Boolean(False),
                 "upload_max_size": Int(128 * 1024 * 1024),
             },
             "processing": {
@@ -266,6 +259,44 @@ class Config(object):
                 "guacd_host": String("localhost"),
                 "guacd_port": Int(4822),
             },
+        },
+        "aws": {
+            "aws": {
+                "region_name": String(),
+                "availability_zone": String(),
+                "aws_access_key_id": String(),
+                "aws_secret_access_key": String(),
+                "machines": List(String, "i-0123456789abcdef"),
+                "interface": String("eth0"),
+                "running_machines_gap": Int(1)
+            },
+            "autoscale": {
+                "autoscale": Boolean(False),
+                "dynamic_machines_limit": Int(10),
+                "image_id": String(),
+                "instance_type": String("t2.medium"),
+                "subnet_id": String(),
+                "security_groups": List(String, ""),
+                "platform": String("windows"),
+                "interface": String(),
+                "options": List(String, None, ",\\s"),
+                "tags": String(),
+                "resultserver_ip": String(),
+                "resultserver_port": Int(2042)
+            },
+            "*": {
+                "__section__": "i-0123456789abcdef",
+                "label": String("i-0123456789abcdef"),
+                "snapshot": String(),
+                "platform": String("windows"),
+                "ip": String(),
+                "interface": String(),
+                "options": List(String, None, ",\\s"),
+                "tags": String(),
+                "resultserver_ip": String(),
+                "resultserver_port": Int()
+            },
+            "__star__": ("aws", "machines")
         },
         "virtualbox": {
             "virtualbox": {
@@ -316,18 +347,6 @@ class Config(object):
                 "certificate": Path(
                     "bin/cert.p12",
                     exists=False, writable=False, readable=True
-                ),
-            },
-            "replay": {
-                "enabled": Boolean(True, required=False),
-                "mitmdump": Path(
-                    "/usr/local/bin/mitmdump", exists=False,
-                    writable=False, readable=True, required=False
-                ),
-                "port_base": Int(51000, required=False),
-                "certificate": Path(
-                    "bin/cert.p12", exists=False,
-                    writable=False, readable=True, required=False
                 ),
             },
             "services": {
@@ -393,7 +412,6 @@ class Config(object):
         },
         "kvm": {
             "kvm": {
-                "dsn": String("qemu:///system", required=False),
                 "interface": String("virbr0"),
                 "machines": List(String, "cuckoo1"),
             },
@@ -579,7 +597,7 @@ class Config(object):
             },
             "network": {
                 "enabled": Boolean(True),
-                "safelist_dns": Boolean(False),
+                "whitelist_dns": Boolean(False),
                 "allowed_dns": String(),
             },
             "procmemory": {
@@ -656,7 +674,6 @@ class Config(object):
                 "scan": Boolean(False),
                 "force": Boolean(False),
                 "url": String(),
-                "probes": String(required=False),
             },
         },
         "qemu": {
@@ -752,12 +769,6 @@ class Config(object):
                 "url": String(),
                 "apikey": String(sanitize=True),
                 "mode": String("maldoc ipaddr hashes url"),
-                "distribution": Int(0, required=False),
-                "analysis": Int(0, required=False),
-                "threat_level": Int(4, required=False),
-                "min_malscore": Int(0, required=False),
-                "tag": String("Cuckoo", required=False),
-                "upload_sample": Boolean(False, required=False),
             },
             "mongodb": {
                 "enabled": Boolean(False),
@@ -820,7 +831,6 @@ class Config(object):
             "inetsim": {
                 "enabled": Boolean(False),
                 "server": String("192.168.56.1"),
-                "ports": String(),
             },
             "tor": {
                 "enabled": Boolean(False),
@@ -1049,7 +1059,7 @@ class Config(object):
 
     @staticmethod
     def from_confdir(dirpath, loose=False, sanitize=False):
-        """Read all the configuration from a configuration directory. If
+        """Reads all the configuration from a configuration directory. If
         `sanitize` is set, then black out sensitive fields."""
         ret = {}
         for filename in os.listdir(dirpath):
@@ -1190,7 +1200,7 @@ def cast(s, value):
     return type_.parse(value)
 
 def read_kv_conf(filepath):
-    """Read a flat Cuckoo key/value configuration file."""
+    """Reads a flat Cuckoo key/value configuration file."""
     ret = {}
     for line in open(filepath, "rb"):
         line = line.strip()
